@@ -1,0 +1,7 @@
+*.o
+*.out
+*.bak
+core
+core.*
+dirtyfrag
+dirtyfrag_arm64
