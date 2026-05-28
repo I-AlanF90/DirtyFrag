@@ -17,6 +17,8 @@ Linux kernel research framework for testing file corruption primitives.
 
 ```bash
 gcc -O2 -Wall dirtyfrag.c -o dirtyfrag
+
+x86_64-linux-gnu-gcc -O2 -Wall dirtyfrag.c -o dirtyfrag
 ```
 
 ## ARM64
