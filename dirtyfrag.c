@@ -1,19 +1,9 @@
 /*
- * dirtyfrag improvements template
- * safer / cleaner / architecture-aware framework
- *
- * goals:
- * - ARM + x86_64 support
- * - safer testing
- * - better debugging
- * - cleaner GitHub repo
- * - easier maintenance
+ * dirtyfrag research framework
+ * safer / cleaner / architecture-aware
  *
  * compile:
- * gcc -O2 -Wall dirtyfrag.c -o dirtyfrag
- *
- * ARM64:
- * aarch64-linux-gnu-gcc -O2 -Wall dirtyfrag.c -o dirtyfrag_arm64
+ * x86_64-linux-gnu-gcc -O2 -Wall dirtyfrag.c -o dirtyfrag
  */
 
 #define _GNU_SOURCE
@@ -50,7 +40,9 @@ void print_architecture(void)
     struct utsname u;
 
     if (uname(&u) < 0) {
+
         WARN("uname failed: %s", strerror(errno));
+
         return;
     }
 
@@ -69,7 +61,7 @@ void print_architecture(void)
 }
 
 /* ============================================================
- * kernel/module checks
+ * module checks
  * ============================================================ */
 
 int module_loaded(const char *name)
@@ -84,12 +76,15 @@ int module_loaded(const char *name)
     while (fgets(line, sizeof(line), f)) {
 
         if (strstr(line, name)) {
+
             fclose(f);
+
             return 1;
         }
     }
 
     fclose(f);
+
     return 0;
 }
 
@@ -148,27 +143,36 @@ int backup_file(const char *src, const char *dst)
     int in = open(src, O_RDONLY);
 
     if (in < 0) {
+
         WARN("open(%s): %s", src, strerror(errno));
+
         return -1;
     }
 
     int out = open(dst, O_CREAT | O_WRONLY | O_TRUNC, 0644);
 
     if (out < 0) {
+
         WARN("open(%s): %s", dst, strerror(errno));
+
         close(in);
+
         return -1;
     }
 
     char buf[4096];
+
     ssize_t n;
 
     while ((n = read(in, buf, sizeof(buf))) > 0) {
 
         if (write(out, buf, n) != n) {
+
             WARN("write failed");
+
             close(in);
             close(out);
+
             return -1;
         }
     }
@@ -201,7 +205,9 @@ void check_target(const char *path)
     struct stat st;
 
     if (stat(path, &st) < 0) {
+
         WARN("Target not found: %s", path);
+
         return;
     }
 
@@ -210,7 +216,7 @@ void check_target(const char *path)
 }
 
 /* ============================================================
- * dry-run / safe mode
+ * safe mode
  * ============================================================ */
 
 void safe_mode(void)
@@ -231,7 +237,31 @@ void safe_mode(void)
 }
 
 /* ============================================================
- * corruption primitive placeholder
+ * environment checks
+ * ============================================================ */
+
+int environment_supported(void)
+{
+    if (!module_loaded("xfrm_user")) {
+
+        WARN("Missing xfrm_user");
+        WARN("ESP/XFRM primitive unavailable");
+
+        return 0;
+    }
+
+    if (access("/proc/self/ns/user", F_OK) != 0) {
+
+        WARN("User namespaces disabled");
+
+        return 0;
+    }
+
+    return 1;
+}
+
+/* ============================================================
+ * primitive placeholder
  * ============================================================ */
 
 int test_write_primitive(const char *path)
@@ -240,13 +270,7 @@ int test_write_primitive(const char *path)
     INFO("Target: %s", path);
 
     /*
-     * put your primitive here
-     *
-     * keep this generic:
-     * - no shellcode
-     * - no ELF overwrite
-     * - no PTY spawning
-     * - no auto-root shell
+     * YOUR PRIMITIVE GOES HERE
      */
 
     GOOD("Primitive completed");
@@ -255,22 +279,34 @@ int test_write_primitive(const char *path)
 }
 
 /* ============================================================
- * exploitability checks
+ * attempt su
  * ============================================================ */
 
-int environment_supported(void)
+int attempt_su(void)
 {
-    if (!module_loaded("xfrm_user")) {
-        WARN("Missing xfrm_user");
-        return 0;
+    INFO("Attempting to launch /usr/bin/su");
+
+    if (access("/usr/bin/su", F_OK) != 0) {
+
+        WARN("/usr/bin/su does not exist");
+
+        return -1;
     }
 
-    if (access("/proc/self/ns/user", F_OK) != 0) {
-        WARN("User namespaces disabled");
-        return 0;
+    if (access("/usr/bin/su", X_OK) != 0) {
+
+        WARN("/usr/bin/su is not executable");
+
+        return -1;
     }
 
-    return 1;
+    INFO("Launching su...");
+
+    execl("/usr/bin/su", "su", "-", NULL);
+
+    WARN("execl failed: %s", strerror(errno));
+
+    return -1;
 }
 
 /* ============================================================
@@ -280,13 +316,16 @@ int environment_supported(void)
 void usage(const char *prog)
 {
     printf("\n");
+
     printf("dirtyfrag research framework\n\n");
 
     printf("usage:\n");
+
     printf("  %s --check\n", prog);
     printf("  %s --backup\n", prog);
     printf("  %s --restore\n", prog);
     printf("  %s --test-write\n", prog);
+    printf("  %s --attempt-su\n", prog);
 
     printf("\n");
 }
@@ -298,7 +337,9 @@ void usage(const char *prog)
 int main(int argc, char **argv)
 {
     if (argc < 2) {
+
         usage(argv[0]);
+
         return 0;
     }
 
@@ -342,11 +383,26 @@ int main(int argc, char **argv)
     if (!strcmp(argv[1], "--test-write")) {
 
         if (!environment_supported()) {
+
             WARN("Environment unsupported");
+
             return 1;
         }
 
         test_write_primitive("/usr/bin/su");
+
+        return 0;
+    }
+
+    /*
+     * ATTEMPT SU
+     */
+
+    if (!strcmp(argv[1], "--attempt-su")) {
+
+        INFO("Running su execution stage");
+
+        attempt_su();
 
         return 0;
     }
